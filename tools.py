@@ -1127,6 +1127,37 @@ AudioQuality.STUDIO,
 ),
         )
         played[message.chat.id] =time.time()
+        keyboard = InlineKeyboardMarkup([
+    [
+        InlineKeyboardButton(text="▷", callback_data="resume"),
+        InlineKeyboardButton(text="II", callback_data="pause"),
+        InlineKeyboardButton(text="‣‣I" if position < 1 else f"‣‣I({position})", callback_data="skip"),
+        InlineKeyboardButton(text="▢", callback_data="end"),
+    ],
+    [
+        InlineKeyboardButton(
+            text=f"{smallcap('Add to group')}", 
+            url=f"https://t.me/{clients['bot'].me.username}?startgroup=true"
+        ),
+        InlineKeyboardButton(text="✖ Close", callback_data="close")
+    ]
+])
+
+sent_message = await clients['bot'].send_photo(
+    message.chat.id,
+    thumb,
+    play_styles[int(gvarstatus(OWNER_ID, "format") or 11)].format(
+        lightyagami(mode),
+        f"[{lightyagami(title)}](https://t.me/{clients['bot'].me.username}?start=vidid_{extract_video_id(youtube_link)})"
+        if not os.path.exists(youtube_link)
+        else lightyagami(title),
+        duration,
+        by.mention()
+    ),
+    reply_markup=keyboard
+)
+                text="✖ Close",callback_data="close"
+            )
         # Creating the inline keyboard with buttons arranged in two rows
         keyboard = InlineKeyboardMarkup([
             [
@@ -1140,7 +1171,7 @@ AudioQuality.STUDIO,
             ),InlineKeyboardButton(
                 text="✖ Close",callback_data="close"
             )
-        ],
+        ],],
         ])
         sent_message = await clients["bot"].send_photo(
             message.chat.id, thumb, play_styles[int(gvarstatus(OWNER_ID, "format") or 11)].format(lightyagami(mode),
