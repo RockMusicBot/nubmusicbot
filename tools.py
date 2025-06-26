@@ -1147,6 +1147,9 @@ AudioQuality.STUDIO,
     ],
 ])
 
+import asyncio
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
 async def handle_play(message, chat, thumb, title, duration, youtube_link, mode, by, keyboard):
     try:
         sent_message = await clients['bot'].send_photo(
@@ -1183,31 +1186,14 @@ async def handle_play(message, chat, thumb, title, duration, youtube_link, mode,
         await clients['bot'].send_message(chat.id, f"ERROR: {e}")
         return await remove_active_chat(message.chat.id)
 
-except GroupcallForbidden:
-    await clients['bot'].send_message(chat.id, "ERROR: Telegram internal server error")
-    return await remove_active_chat(message.chat.id)
 
-except Exception as e:
-    await clients['bot'].send_message(chat.id, f"ERROR: {e}")
-    return await remove_active_chat(message.chat.id)
-
-
-
-
-
-
-
+# ------------------- Helper functions below -------------------
 
 from functools import wraps
 from typing import Tuple, Optional
 
-# Example usage:
 async def is_active_chat(chat_id):
-    if chat_id not in active:
-        return False
-    else:
-        return True
-
+    return chat_id in active
 
 def get_user_data(user_id, key):
     user_data = user_sessions.find_one({"user_id": user_id})
@@ -1218,10 +1204,7 @@ def get_user_data(user_id, key):
 def gvarstatus(user_id, key):
     return get_user_data(user_id, key)
 
-
-
-
 PLANS = {
     "standard": {"amount": 6900, "duration": 20, "merit": 0},   # ₹69 for 20 days
     "pro": {"amount": 17900, "duration": 60, "merit": 2}        # ₹180 for 60 days
-}
+        }
