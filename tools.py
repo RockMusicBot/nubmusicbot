@@ -1190,8 +1190,146 @@ async def handle_play(message, chat, thumb, title, duration, youtube_link, mode,
 # ------------------- Helper functions below -------------------
 
 from functools import wraps
+import asyncio
+import random
+import time
+import os
+import datetime
+
+from functools import wraps
 from typing import Tuple, Optional
 
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from yt_dlp import YoutubeDL
+
+# Async handlers
+async def hd_stream_closed_kicked(client, update):
+    logger.info(update)
+    try:
+        await remove_active_chat(update.chat_id)
+        queues[update.chat_id].clear()
+        playing[update.chat_id].clear()
+    except Exception as e:
+        logger.info(e)
+
+
+async def end(client, update):
+    try:
+        collection.update_one(
+            {"bot_id": clients["bot"].me.id},
+            {"$push": {'dates': datetime.datetime.now()}},
+            upsert=True
+        )
+    except Exception as e:
+        logger.info(f"Error saving playtime: {e}")
+
+    try:
+        if update.chat_id in queues and queues[update.chat_id]:
+            next_song = queues[update.chat_id].pop(0)
+            if update.chat_id in playing:
+                if update.stream_type == StreamEnded.Type.VIDEO:
+                    await client.leave_call(update.chat_id)
+            playing[update.chat_id] = next_song
+            await join_call(
+                next_song['message'], next_song['title'],
+                next_song['yt_link'], next_song['chat'],
+                next_song['by'], next_song['duration'],
+                next_song['mode'], next_song['thumb']
+            )
+        else:
+            logger.info(f"Song queue for chat {update.chat_id} is empty.")
+            await client.leave_call(update.chat_id)
+            await remove_active_chat(update.chat_id)
+            playing[update.chat_id].clear()
+    except Exception as e:
+        logger.info(f"Error in end function: {e}")
+
+
+# Join VC function
+async def join_call(message, title, youtube_link, chat, by, duration, mode, thumb):
+    audio_flags = MediaStream.Flags.IGNORE if mode == "audio" else None
+    position = len(queues.get(message.chat.id)) if queues.get(message.chat.id) else 0
+    try:
+        await clients["call_py"].play(
+            chat.id,
+            MediaStream(
+                youtube_link,
+                AudioQuality.STUDIO,
+                VideoQuality.UHD_4K,
+                video_flags=audio_flags,
+                ytdlp_parameters="--cookies-from-browser chrome"
+            ),
+        )
+        played[message.chat.id] = time.time()
+
+        # Keyboard
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton(text="▷", callback_data="resume"),
+                InlineKeyboardButton(text="II", callback_data="pause"),
+                InlineKeyboardButton(
+                    text="‣‣I" if position < 1 else f"‣‣I({position})",
+                    callback_data="skip"
+                ),
+                InlineKeyboardButton(text="▢", callback_data="end"),
+            ],
+            [
+                InlineKeyboardButton(
+                    text=f"{smallcap('Add to group')}",
+                    url=f"https://t.me/{clients['bot'].me.username}?startgroup=true"
+                ),
+                InlineKeyboardButton(text="✖ Close", callback_data="close")
+            ]
+        ])
+
+        await handle_play(
+            message, chat, thumb, title, duration,
+            youtube_link, mode, by, keyboard
+        )
+
+    except Exception as e:
+        logger.error(f"Join call failed: {e}")
+
+
+# Handle play function
+async def handle_play(message, chat, thumb, title, duration, youtube_link, mode, by, keyboard):
+    try:
+        sent_message = await clients['bot'].send_photo(
+            message.chat.id,
+            thumb,
+            play_styles[int(gvarstatus(OWNER_ID, "format") or 11)].format(
+                lightyagami(mode),
+                f"[{lightyagami(title)}](https://t.me/{clients['bot'].me.username}?start=vidid_{extract_video_id(youtube_link)})"
+                if not os.path.exists(youtube_link)
+                else lightyagami(title),
+                duration,
+                by.mention()
+            ),
+            reply_markup=keyboard
+        )
+
+        asyncio.create_task(autoleave_vc(sent_message, duration, chat))
+        asyncio.create_task(update_progress_button(sent_message, duration, chat))
+
+        try:
+            await message.delete()
+        except Exception as e:
+            logger.info(e)
+
+    except NoActiveGroupCall:
+        await clients['bot'].send_message(chat.id, "ERROR: No active group calls")
+        return await remove_active_chat(message.chat.id)
+
+    except GroupcallForbidden:
+        await clients['bot'].send_message(chat.id, "ERROR: Telegram internal server error")
+        return await remove_active_chat(message.chat.id)
+
+    except Exception as e:
+        await clients['bot'].send_message(chat.id, f"ERROR: {e}")
+        return await remove_active_chat(message.chat.id)
+
+
+# Helper functions
 async def is_active_chat(chat_id):
     return chat_id in active
 
@@ -1206,5 +1344,5 @@ def gvarstatus(user_id, key):
 
 PLANS = {
     "standard": {"amount": 6900, "duration": 20, "merit": 0},   # ₹69 for 20 days
-    "pro": {"amount": 17900, "duration": 60, "merit": 2}        # ₹180 for 60 days
+    "pro": {"amount": 17900, "duration": 60, "merit": 2}         # ₹180 for 60 days
         }
