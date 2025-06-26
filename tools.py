@@ -1147,31 +1147,41 @@ AudioQuality.STUDIO,
     ],
 ])
 
-sent_message = await clients['bot'].send_photo(
-    message.chat.id,
-    thumb,
-    play_styles[int(gvarstatus(OWNER_ID, "format") or 11)].format(
-        lightyagami(mode),
-        f"[{lightyagami(title)}](https://t.me/{clients['bot'].me.username}?start=vidid_{extract_video_id(youtube_link)})"
-        if not os.path.exists(youtube_link)
-        else lightyagami(title),
-        duration,
-        by.mention()
-    ),
-    reply_markup=keyboard
-)
+async def handle_play(message, chat, thumb, title, duration, youtube_link, mode, by, keyboard):
+    try:
+        sent_message = await clients['bot'].send_photo(
+            message.chat.id,
+            thumb,
+            play_styles[int(gvarstatus(OWNER_ID, "format") or 11)].format(
+                lightyagami(mode),
+                f"[{lightyagami(title)}](https://t.me/{clients['bot'].me.username}?start=vidid_{extract_video_id(youtube_link)})"
+                if not os.path.exists(youtube_link)
+                else lightyagami(title),
+                duration,
+                by.mention()
+            ),
+            reply_markup=keyboard
+        )
 
-asyncio.create_task(autoleave_vc(sent_message, duration, chat))
-asyncio.create_task(update_progress_button(sent_message, duration, chat))
+        asyncio.create_task(autoleave_vc(sent_message, duration, chat))
+        asyncio.create_task(update_progress_button(sent_message, duration, chat))
 
-try:
-    await message.delete()
-except Exception as e:
-    logger.info(e)
+        try:
+            await message.delete()
+        except Exception as e:
+            logger.info(e)
 
-except NoActiveGroupCall:
-    await clients['bot'].send_message(chat.id, "ERROR: No active group calls")
-    return await remove_active_chat(message.chat.id)
+    except NoActiveGroupCall:
+        await clients['bot'].send_message(chat.id, "ERROR: No active group calls")
+        return await remove_active_chat(message.chat.id)
+
+    except GroupcallForbidden:
+        await clients['bot'].send_message(chat.id, "ERROR: Telegram internal server error")
+        return await remove_active_chat(message.chat.id)
+
+    except Exception as e:
+        await clients['bot'].send_message(chat.id, f"ERROR: {e}")
+        return await remove_active_chat(message.chat.id)
 
 except GroupcallForbidden:
     await clients['bot'].send_message(chat.id, "ERROR: Telegram internal server error")
