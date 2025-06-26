@@ -1155,7 +1155,7 @@ sent_message = await clients['bot'].send_photo(
         by.mention()
     ),
     reply_markup=keyboard
-)
+        )
                 text="✖ Close",callback_data="close"
             )
         # Creating the inline keyboard with buttons arranged in two rows
